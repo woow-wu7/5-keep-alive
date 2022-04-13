@@ -147,6 +147,10 @@ home首页页 -> list列表页 -> 详情页
 - 4. 从列表 -> 首页 -------------------- 去除 include，不再缓存
 ```
 
+# 相关项目源码链接
+
+- [测试 activated deactivated component keepAlive](https://github.com/woow-wu7/vue2-research/blob/master/src/views/KeepAlive.vue)
+
 # 资料
 
 - 路由按需加载 https://juejin.cn/post/6844903846901186574
