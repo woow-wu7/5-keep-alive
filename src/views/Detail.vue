@@ -9,7 +9,7 @@
 <script>
 export default {
   // eslint-disable-next-line vue/multi-word-component-names
-  name: "Detail",
+  name: "Detail", // 注意 name 需要和 路由对象中的name 一样，因为我们这里 include 通过name来判断是否需要被缓存
   data() {
     return {};
   },
