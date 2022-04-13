@@ -97,10 +97,12 @@ beforeEnter
 - props
   - **include**
     - 作用：只有名称匹配的组件会被缓存
-    - 类型：string|regexp
+    - 类型：string|regexp|array
+    - 比如：include="a,b" :include="/a|b/" :include="['a', 'b']"
+    - 官网链接：https://cn.vuejs.org/v2/api/#keep-alive
   - **exclude**
     - 作用：任何名称匹配的组件都不会被缓存
-    - 类型：string|regexp
+    - 类型：string|regexp|array
   - **max**
     - 作用：表示最多可以缓存的组件实例个数
     - 类型：number
