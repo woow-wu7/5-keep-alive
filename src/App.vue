@@ -22,7 +22,7 @@ export default {
   },
   watch: {
     // watch $route 是组件响应路由变化的解决方案之一，还可以使用 beforeRouteUpdate 守卫
-    // 1
+    // 方案一
     $route(to, from) {
       if (to.meta.shouldKeepAlive && !this.includes.includes(to.name)) {
         this.includes.push(to.name);
@@ -35,9 +35,18 @@ export default {
       }
     },
   },
-  updated() {
-    console.log("this.includes", this.includes);
-  },
+
+  // 2 方案二
+  // beforeRouteUpdate(to, from) {
+  //   if (to.meta.shouldKeepAlive && !this.includes.includes(to.name)) {
+  //     this.includes.push(to.name);
+  //   }
+  //   // 如果 当前路由需要被缓存，并且是返回操作(详情->列表->首页) 就删除当前路由，则不再被缓存
+  //   if (from.meta.shouldKeepAlive && to.meta.deep < from.meta.deep) {
+  //     const index = this.includes.findIndex((name) => name === from.name);
+  //     index !== -1 && this.includes.splice(index, 1);
+  //   }
+  // },
 };
 </script>
 
