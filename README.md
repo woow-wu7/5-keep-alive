@@ -1,9 +1,3 @@
-# 7-keep-alive
-
-# 项目说明
-
-- 本项目主要解决 首页 -> 列表 -> 详情 的缓存问题
-
 # 前置知识
 
 ### (1) 一些单词
@@ -11,6 +5,10 @@
 ```
 research 研究 探索
 guard 守卫
+
+abstract 抽象 // 抽象组件 keep-alive transition
+least recently used // 最近最少使用 - LRU缓存策略 // least最少的 // recently最近
+prune 修剪 削减
 ```
 
 ### (2) 路由守卫 guard
@@ -63,14 +61,17 @@ beforeEnter
 
 ### (4) 内置组件 component
 
+```
+内置组件 component
 - props
   - `is`
     - 类型：string | ComponentDefinition | ComponentConstructor
-    - **is 是什么**？：可以是 ( `组件的名字` )，或者 ( `一个组件的选项对象` )
+    - **is是什么**？：可以是 ( `组件的名字` )，或者 ( `一个组件的选项对象` )
   - `inline-template`
     - 类型：boolean
 - 用法
   - 渲染一个元组件为 `动态组件`，根据 `is` 的值来决定哪个组件被渲染
+```
 
 ```
 <!-- 动态组件由 vm 实例的 `componentId` property 控制 -->
@@ -87,22 +88,33 @@ beforeEnter
 <component v-bind:is="currentTabComponent"></component>
 ```
 
-### (4) 内置组件 keep-alive
+### (4) 内置抽象组件 keep-alive
 
 - 组件类型
   - 是一个 ( `抽象组件` )
   - 扩展：
-    - 1.抽象组件有哪些？比如：`<transition>` `<keep-alive>`
-    - 2.抽象组件的特点？比如：`自身不会渲染成DOM`，`也不会出现在组件的父组件链中`
+    - 1.抽象组件有哪些？
+      - `<transition>`
+      - `<keep-alive>`
+    - 2.抽象组件的特点？
+      - `自身不会渲染成DOM`，即不会渲染到页面上
+      - `也不会出现在组件的父组件链中`，即不会和父组件，子组件建立父子关系
+  - 原理
+    - 问题：抽象组件是如何实现 - 不在父组件链中的呢
+    - 回答：在 ( 初始化阶段 ) 会调用 ( initLifecycle )，会去判断 ( 父组件是否为抽象组件 )，如果是抽象组件就选取 ( 抽象组件的上一层 ) 作为父级，即忽略抽象组件和父组件，抽象组件和子组件的层级关系
+    - 简化：就是如果是抽象组件，就把抽象组件的 - 父组件作为子组件的父组件
 - props
   - **include**
     - 作用：只有名称匹配的组件会被缓存
     - 类型：string|regexp|array
-    - 比如：include="a,b" :include="/a|b/" :include="['a', 'b']"
+    - 比如：
+      - `逗号分隔的字符串 include="a,b"`
+      - `正则表达式 :include="/a|b/"`
+      - `数组 :include="['a', 'b']"`
     - 官网链接：https://cn.vuejs.org/v2/api/#keep-alive
   - **exclude**
     - 作用：任何名称匹配的组件都不会被缓存
-    - 类型：string|regexp|array
+    - 类型：string|regexp
   - **max**
     - 作用：表示最多可以缓存的组件实例个数
     - 类型：number
@@ -120,12 +132,12 @@ beforeEnter
       - A 组件 - deactivated
       - B 组件 - mounted
       - B 组件 - activated
-    - 切换 B-A
+    - 切换 B->A
       - B 组件 - deactivated
       - A 组件 - activated
       - 注意：`此时A组件的mounted不再被执行，因为已经缓存在内存中，并没有被卸载，也就不会重新被mount`
 
-# keep-alive 运用 - 实现路由按需缓存
+### (5) keep-alive 运用 - 实现路由按需缓存
 
 ```
 场景：
@@ -137,8 +149,10 @@ home首页页 -> list列表页 -> 详情页
 
 解决方案：
 - 1. 利用 keep-alive 组件的 include 和 exclude 两个属性
-- 2. 同时利用 vue-router 的 meta 元信息
-- 3. v-if
+- 2. 同时利用 vue-router 的 meta 元信息 ( meta:{deep,shouldKeepAlive} )
+     - meta.deep 用来表示页面的层级，最终用来判断是前进和还是返回操作
+     - meta.shouldKeepAlive 表示路由对应的页面是否需要被keep-alive缓存
+- 3. v-if 决定 keep-alive 抽象组件是否被渲染
 - 4. watch 一个 $route ( 是组件响应路由变化的解决方案之一，还可以使用 beforeRouteUpdate 守卫 )
 - 4. component组件的name属性 和 route对象中的name属性 保持一致
 
@@ -147,12 +161,230 @@ home首页页 -> list列表页 -> 详情页
 - 2. 从列表 -> 详情 -------------------- 不改变 include，即仍然缓存
 - 3. 从详情 -> 列表 -------------------- 不改变 include，即仍然缓存
 - 4. 从列表 -> 首页 -------------------- 去除 include，不再缓存
+
+项目源码：
+- https://github.com/woow-wu7/7-keep-alive
 ```
 
-# 相关项目源码链接
+### (6) LRU 缓存策略
 
-- [测试 activated deactivated component keepAlive](https://github.com/woow-wu7/vue2-research/blob/master/src/views/KeepAlive.vue)
+- LRU：`Least recently used` 最近最少使用
+- least 最少的
+- recent 最近的
+
+```
+LRU 缓存策略的原理
+---
+
+1. 将 ( 最不常用 ) 的从 ( 数组 ) 中剔除 ( 数组头部 - 是最不常用的 )
+2. 在存在 max 的情况下
+   - 如果 ( 最新访问的节点 ) 在 ( 缓存数组 ) 中 ( 存在 )，就把该节点 ( 移动 ) 到 ( 数组尾部 - 表示新使用 )
+   - 如果 ( 最新访问的节点 ) 在 ( 缓存数组 ) 中 ( 不存在 )，直接 ( 添加 ) 到 ( 数组尾部 - 表示最常用 )
+3. 如下图
+```
+
+![image.png](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/adec02e21ecd4b8b8d51107a4ca0ca7b~tplv-k3u1fbpfcp-watermark.image?)
+
+### (7) Vue.extend 和 Vue.component
+
+```
+1
+Vue.extend
+- 作用：使用基础Vue构造器，创建一个子类
+- 注意：不是创建vue实例，而是创建一个 ( 子类 )，再通过 `new子类` 来生成vue组件实例
+- 官网：https://cn.vuejs.org/v2/api/#Vue-extend
+- 源码分析：https://juejin.cn/post/6844904201944825863
+
+2
+Vue.component
+- 作用：注册 或 获取 全局组件
+- 注册组件
+  - 第二个参数可以是 Vue.extend返回的子类构造器
+  - 第二个参数可以是 配置对象
+- 获取注册的组件
+  - 返回一个构造起
+// 注册组件，传入一个扩展过的构造器 Vue.component('my-component', Vue.extend({ /* ... */ }))
+// 注册组件，传入一个选项对象 (自动调用 Vue.extend) Vue.component('my-component', { /* ... */ })
+// 获取注册的组件 (始终返回构造器) var MyComponent = Vue.component('my-component')
+```
+
+# (一) keep-alive 源码
+
+- 源码文件位置：src/core/components/keep-alive.js
+- [源码仓库]()
+
+```
+1. keep-alive 组件的初始化注册
+- 原因：因为 keep-alive 是一个组件，初始化的时需要注册成vue的全局组件，则可以在所有的页面中使用全局组件
+- 源码文件位置：src/core/global-api/index.js
+---
+
+// 1
+// 注册全局内置组件，比如keep-alive
+// - builtInComponents 就是 <keep-alive> 组件
+extend(Vue.options.components, builtInComponents);
+```
+
+```
+2. keep-alive 组件
+- 源码文件位置：src/core/components/keep-alive.js
+---
+
+// keep-alive 组件 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// 1
+// keep-alive组件的 - 初始化全局注册
+// - 原因：因为 keep-alive 是一个组件，初始化的时需要注册成vue的全局组件，则可以在所有的页面中使用全局组件
+// - 流程：
+export default {
+  name: 'keep-alive',
+  abstract: true,
+  // abstract: true,
+  // - 抽象组件的标志，即 keep-alive 是一个抽象组件
+  // - 抽象组件的 ( 特点 )
+  //  - 1. 自身不会渲染成 DOM ----------- 即不会渲染到页面上
+  //  - 2. 也不会出现在组件的父组件链中 --- 即不会和 ( keep-alive的父组件 ) 和 ( keep-alive的子组件 ) 建立两个父子关系
+  // - 原理
+  //   - 问题：抽象组件是如何实现 - 不在父组件链中的呢
+  //   - 回答：在 ( 初始化阶段 ) 会调用 ( initLifecycle )，会去判断 ( 父组件是否为抽象组件 )，如果是抽象组件就选取 ( 抽象组件的上一层 ) 作为父级，即忽略抽象组件和父组件，抽象组件和子组件的层级关系
+  //   - 简化：就是如果是抽象组件，就把抽象组件的 - 父组件作为子组件的父组件
+  // - 常见的抽象组件：<keep-alive> <transition>
+
+  // 3 个 props
+  props: {
+    include: patternTypes,
+    // include可以是
+    // - 逗号分隔的字符串，比如 ----- <keep-alive include="a,b">
+    // - 正则表达式，比如 --------- <keep-alive :include="/a|b/">
+    // - 数组，比如 --------------- <keep-alive :include="['a', 'b']">
+    // - 官网说明：https://cn.vuejs.org/v2/api/#keep-alive
+    // - 使用详见1 https://github.com/woow-wu7/7-keep-alive
+    // - 使用详见2 https://github.com/woow-wu7/vue2-research/blob/master/src/views/KeepAlive.vue
+    exclude: patternTypes,
+    max: [String, Number]
+  },
+
+  methods: {
+    // cacheVNode
+    // - 在 mounted 时被调用
+    // - 在 updated 是也被调用
+    cacheVNode() {
+      const { cache, keys, vnodeToCache, keyToCache } = this
+      if (vnodeToCache) {
+        const { tag, componentInstance, componentOptions } = vnodeToCache
+        cache[keyToCache] = {
+          name: getComponentName(componentOptions), // 组件名
+          tag, // tag
+          componentInstance, // 组件实例
+        }
+        // cache
+        // - key -> keyToCache
+        // - value -> 组装的组件对象
+
+        keys.push(keyToCache)
+
+        // prune oldest entry
+        // 删掉最古老的条目
+        // LRU 缓存策略执行的时机，max存在，并且大于了max
+        if (this.max && keys.length > parseInt(this.max)) {
+          pruneCacheEntry(cache, keys[0], keys, this._vnode)
+        }
+        this.vnodeToCache = null
+      }
+    }
+  },
+
+  created () {
+    this.cache = Object.create(null)
+    // cache
+    // - cache对象，用来缓存 vnode
+    // - LRU：
+    //  - 最近最少使用的缓存策略
+    //  - keep-alive 使用的是 least recently used 最近最少使用的缓存策略
+    //  - 详见：https://juejin.cn/post/6862206197877964807
+
+    this.keys = [] // vnode 的 key
+  },
+
+  destroyed () {
+    for (const key in this.cache) {
+      pruneCacheEntry(this.cache, key, this.keys)
+    }
+  },
+
+  mounted () {
+    this.cacheVNode()
+
+    // 监听 include 和 exclude 的变化，从而决定是否缓存组件
+    this.$watch('include', val => {
+      pruneCache(this, name => matches(val, name))
+    })
+    this.$watch('exclude', val => {
+      pruneCache(this, name => !matches(val, name))
+    })
+  },
+
+  updated () {
+    this.cacheVNode()
+  },
+
+  render () {
+    const slot = this.$slots.default
+
+    const vnode: VNode = getFirstComponentChild(slot) // 获取 slot 中的第一个 ( 组件vnode )
+
+    const componentOptions: ?VNodeComponentOptions = vnode && vnode.componentOptions // 获取组件配置项
+
+    if (componentOptions) {
+      // check pattern
+      // 检查模式
+      const name: ?string = getComponentName(componentOptions) // 获取组件的 name 属性，或 tag 属性
+      const { include, exclude } = this
+
+      // 111111 不做缓存
+      if (
+        // not included
+        (include && (!name || !matches(include, name))) ||
+        // excluded
+        (exclude && name && matches(exclude, name))
+      ) {
+        // 组件名与include不匹配或与exclude匹配都会直接退出并返回 VNode，不走缓存机制
+        // - 1. name 在 include 中不存在
+        // - 2. name 在 exclude 中存在
+        // - 以上两种情况都直接返回返回 slot，不做缓存处理
+        return vnode
+      }
+
+      // 222222 以下是缓存的逻辑
+      const { cache, keys } = this
+      const key: ?string = vnode.key == null
+        // same constructor may get registered as different local components
+        // so cid alone is not enough (#3269)
+        ? componentOptions.Ctor.cid + (componentOptions.tag ? `::${componentOptions.tag}` : '')
+        : vnode.key
+
+      if (cache[key]) { // -- 组件已经缓存过
+        vnode.componentInstance = cache[key].componentInstance // 直接获取缓存的组件的 vnode.componentInstance
+        // make current key freshest
+        // 确保当前的key是最新的，即 LRU 最近最少使用缓存策略
+        remove(keys, key) // ------- 1. 删除 keys 数组中的 key
+        keys.push(key) // ---------- 2. 删除后，把该 key 放在 keys 数组的 ( 尾部 )，即 LRU 最近最少使用的缓存策略
+      } else { // ----------- 组件未缓存过
+        // delay setting the cache until update
+        // 延迟设置缓存，直到更新
+        this.vnodeToCache = vnode // 供 cacheVNode 方法使用
+        this.keyToCache = key // 供 cacheVNode 方法使用
+      }
+
+      vnode.data.keepAlive = true // 在组件的data中，添加标志位 keepAlive，表示该组件被缓存了
+    }
+    return vnode || (slot && slot[0]) // 返回第一个组件，或者 slot，或者 slot[0]，逐渐降级
+  }
+}
+```
 
 # 资料
 
 - 路由按需加载 https://juejin.cn/post/6844903846901186574
+- keep-alive 源码分析 1 https://juejin.cn/post/6998804817309073421
+- keep-alive 源码分析 2 https://juejin.cn/post/6862206197877964807
+- 政采云 keep-alive3 https://www.zoo.team/article/lru-keep-alive

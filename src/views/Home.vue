@@ -12,6 +12,10 @@ export default {
   data() {
     return {};
   },
+  mounted() {
+    console.log("this", this);
+    console.log("this.$options._Ctor", this.$options._Ctor);
+  },
 };
 </script>
 
