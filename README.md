@@ -9,6 +9,7 @@ guard 守卫
 abstract 抽象 // 抽象组件 keep-alive transition
 least recently used // 最近最少使用 - LRU缓存策略 // least最少的 // recently最近
 prune 修剪 削减
+alive 活着的 活着
 ```
 
 ### (2) 路由守卫 guard
@@ -136,6 +137,17 @@ beforeEnter
       - B 组件 - deactivated
       - A 组件 - activated
       - 注意：`此时A组件的mounted不再被执行，因为已经缓存在内存中，并没有被卸载，也就不会重新被mount`
+  - **activated 和 deactivated 总结**
+    - keep-alive 的渲染分为 ( 首次渲染 ) 和 ( 缓存渲染 )
+    - 渲染
+      - 首次渲染
+        - 首次渲染和一般组件首次渲染差不多，只是做了缓存处理
+      - 缓存渲染
+        - 并不会再走一次组件初始化，render 和 patch 等一系列流程
+        - 减少了 script 的执行时间，性能更好
+        - 如果缓存命中，不会再执行 created mounted，而是执行 activated
+    - 销毁
+      - 如果缓存命中，不会执行 destroyed，而是执行 deactivated
 
 ### (5) keep-alive 运用 - 实现路由按需缓存
 
@@ -208,6 +220,47 @@ Vue.component
 // 获取注册的组件 (始终返回构造器) var MyComponent = Vue.component('my-component')
 ```
 
+### (8) es2022 新特性
+
+```
+1
+数组的 at 方法
+---
+const arr = [1,2,3]
+arr.at(-1) // 3
+arr[arr.length - 1] // 相比于之前的写更短更优雅
+```
+
+```
+2
+顶层 await
+---
+该特性已经被 vue3 所使用
+await Promise.resolve(1) // 用最新的chrome测试过了，已经支持
+```
+
+```
+3
+类的 私有属性 和 私有方法
+- 特点
+  - 都不能在外部直接访问，可以在内部中直接访问
+  - 可以通过类的原型方法 - 来间接访问私有方法和私有属性
+---
+class C {
+  constructor() {
+    this.#getName(); // 私有方法 和 私有属性 只能在类中直接调用
+  }
+  #name = "woow_wu7";
+  #getName = () => this.name;
+  getName = () => this.#name;
+  // 1. 私有属性访问时，也需要加 #
+  // 2. 私有方法和私有属性 - 可以在外部调用实例原型方法 - 来间接访问私有属性和私有方法
+}
+const c = new C();
+console.log("c.name", c.name); // undefined
+console.log("c.getName()", c.getName()); // woow_wu7
+```
+
 # (一) keep-alive 源码
 
 - 源码文件位置：src/core/components/keep-alive.js
@@ -247,6 +300,8 @@ export default {
   //   - 问题：抽象组件是如何实现 - 不在父组件链中的呢
   //   - 回答：在 ( 初始化阶段 ) 会调用 ( initLifecycle )，会去判断 ( 父组件是否为抽象组件 )，如果是抽象组件就选取 ( 抽象组件的上一层 ) 作为父级，即忽略抽象组件和父组件，抽象组件和子组件的层级关系
   //   - 简化：就是如果是抽象组件，就把抽象组件的 - 父组件作为子组件的父组件
+  //   - 流程：init -> initLifecycle(vm)
+  //   - 文件位置：src/core/instance/lifecycle.js
   // - 常见的抽象组件：<keep-alive> <transition>
 
   // 3 个 props
@@ -307,7 +362,7 @@ export default {
 
   destroyed () {
     for (const key in this.cache) {
-      pruneCacheEntry(this.cache, key, this.keys)
+      pruneCacheEntry(this.cache, key, this.keys) // 清除缓存的组件，同时卸载组件
     }
   },
 
@@ -375,12 +430,20 @@ export default {
         this.keyToCache = key // 供 cacheVNode 方法使用
       }
 
-      vnode.data.keepAlive = true // 在组件的data中，添加标志位 keepAlive，表示该组件被缓存了
+      vnode.data.keepAlive = true
+      // 在组件的data中，添加标志位 keepAlive，表示该组件被缓存了
+      // 注意：这里是 <keep-alive> 包裹的组件的data.keepAlive，而不是 keep-alive 组件
     }
     return vnode || (slot && slot[0]) // 返回第一个组件，或者 slot，或者 slot[0]，逐渐降级
   }
 }
 ```
+
+# (二) keep-alive 相关链接
+
+- keep-alive 实现动态路由缓存：https://github.com/woow-wu7/7-keep-alive
+- activated 和 deactivated 测试：https://github.com/woow-wu7/vue2-research/blob/master/src/views/KeepAlive.vue
+- keep-alive 源码分析仓库：https://github.com/woow-wu7/7-vue2-source-code-analysis
 
 # 资料
 
@@ -388,3 +451,4 @@ export default {
 - keep-alive 源码分析 1 https://juejin.cn/post/6998804817309073421
 - keep-alive 源码分析 2 https://juejin.cn/post/6862206197877964807
 - 政采云 keep-alive3 https://www.zoo.team/article/lru-keep-alive
+- 美团缓存策略 https://tech.meituan.com/2017/03/17/cache-about.html
