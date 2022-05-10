@@ -17,7 +17,7 @@ export default {
   name: "App",
   data() {
     return {
-      includes: [], // app组件相当于全局组件，不会被卸载，所有data会一致被被保存
+      includes: [], // app组件相当于全局组件，不会被卸载，所有data会一直被被保存
     };
   },
   watch: {
